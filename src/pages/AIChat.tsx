@@ -36,6 +36,11 @@ const AIChat: React.FC = () => {
   const initializeChatSession = async () => {
     try {
       setIsLoading(true);
+      
+      // 每次初始化聊天会话时，重新初始化 AI 服务以获取最新设置
+      const aiServiceModule = await import('@/services/aiService');
+      aiServiceModule.default.reinitialize();
+      
       if (currentChatSession) {
         const result = await aiService.getChatMessages(currentChatSession.id);
         if (result.success && result.data) { setMessages(result.data); }

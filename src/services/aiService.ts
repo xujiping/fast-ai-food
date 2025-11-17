@@ -21,11 +21,39 @@ class AIService {
   private openai: OpenAI | null = null;
 
   constructor() {
-    const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
-    const baseURL = import.meta.env.VITE_OPENAI_BASE_URL || undefined;
-    if (apiKey && apiKey !== 'your-openai-api-key') {
-      this.openai = new OpenAI({ apiKey, baseURL, dangerouslyAllowBrowser: true });
+    this.initializeOpenAI();
+  }
+
+  private initializeOpenAI() {
+    try {
+      const isDemoMode = localStorage.getItem('ai_demo_mode') !== 'false'; // 默认为演示模式
+      
+      if (!isDemoMode) {
+        const apiKey = localStorage.getItem('openai_api_key');
+        const baseURL = localStorage.getItem('openai_base_url') || undefined;
+        
+        if (apiKey && apiKey.trim() !== '') {
+          this.openai = new OpenAI({ 
+            apiKey, 
+            baseURL, 
+            dangerouslyAllowBrowser: true 
+          });
+          console.log('OpenAI 已初始化');
+        } else {
+          console.warn('未找到有效的 OpenAI API 密钥，将使用演示模式');
+        }
+      } else {
+        console.log('当前处于演示模式');
+      }
+    } catch (error) {
+      console.error('初始化 OpenAI 失败:', error);
     }
+  }
+
+  // 重新初始化 OpenAI（用于设置更改后）
+  reinitialize() {
+    this.openai = null;
+    this.initializeOpenAI();
   }
 
   async createChatSession(userId: string, title: string, contextType?: string, contextId?: string): Promise<ApiResponse<ChatSession>> {
@@ -72,7 +100,7 @@ class AIService {
         ];
 
         if (request.image_url) {
-          const visionModel = import.meta.env.VITE_OPENAI_VISION_MODEL || import.meta.env.VITE_OPENAI_MODEL || 'gpt-4o-mini';
+          const visionModel = localStorage.getItem('openai_vision_model') || 'gpt-4o-mini';
           const response = await this.openai.chat.completions.create({
             model: visionModel,
             messages: [
@@ -83,17 +111,62 @@ class AIService {
           });
           aiResponse = response.choices[0]?.message?.content || '抱歉，我无法处理这张图片。';
         } else {
-          const textModel = import.meta.env.VITE_OPENAI_MODEL || 'gpt-3.5-turbo';
-          const response = await this.openai.chat.completions.create({ model: textModel, messages, max_tokens: 500, temperature: 0.7 });
+          const textModel = localStorage.getItem('openai_model') || 'gpt-3.5-turbo';
+          const response = await this.openai.chat.completions.create({ 
+            model: textModel, 
+            messages, 
+            max_tokens: 500, 
+            temperature: 0.7 
+          });
           aiResponse = response.choices[0]?.message?.content || '抱歉，我无法回答这个问题。';
         }
         suggestions = [];
       } else {
-        aiResponse = '演示模式：这里展示模拟AI回复与建议。';
+        // 演示模式回复
+        const demoResponses = [
+          '这是一个很好的问题！在演示模式下，我建议您可以尝试使用新鲜的食材来提升菜品的口感。',
+          '根据您的描述，我认为这道菜可以增加一些香料来提升风味。',
+          '演示模式：这道菜的营养价值很高，富含维生素和蛋白质。',
+          '在演示模式下，我建议您可以参考类似的菜谱，并根据个人口味进行调整。'
+        ];
+        
+        aiResponse = demoResponses[Math.floor(Math.random() * demoResponses.length)];
+        suggestions = ['了解更多菜谱', '查看营养信息', '获取烹饪技巧'];
       }
 
-      const response: AIChatResponse = { message: aiResponse, suggestions, related_recipes: relatedRecipes, related_ingredients: relatedIngredients };
+      const response: AIChatResponse = { 
+        message: aiResponse, 
+        suggestions, 
+        related_recipes: relatedRecipes, 
+        related_ingredients: relatedIngredients 
+      };
+      
       return { success: true, data: response };
+    } catch (error) {
+      console.error('AI 聊天错误:', error);
+      return { success: false, error: (error as Error).message };
+    }
+  }
+
+  // 测试 API 连接
+  async testConnection(): Promise<ApiResponse<{ status: string }>> {
+    try {
+      if (!this.openai) {
+        return { success: false, error: 'OpenAI 未初始化，请检查配置' };
+      }
+      
+      const model = localStorage.getItem('openai_model') || 'gpt-3.5-turbo';
+      const response = await this.openai.chat.completions.create({
+        model,
+        messages: [{ role: 'user', content: '测试连接' }],
+        max_tokens: 10
+      });
+      
+      if (response.choices && response.choices.length > 0) {
+        return { success: true, data: { status: '连接成功' } };
+      } else {
+        return { success: false, error: '未收到有效响应' };
+      }
     } catch (error) {
       return { success: false, error: (error as Error).message };
     }
