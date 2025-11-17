@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { List, Input, Button, NavBar, Toast, ImageUploader, Space } from "antd-mobile";
 import { MessageOutlined, SendOutlined, PlusOutlined, CameraOutlined, PictureOutlined } from "@ant-design/icons";
 import { useAppStore } from "@/stores/appStore";
-import { aiService, AIChatRequest } from "@/services/aiService";
+import aiService, { AIChatRequest } from "@/services/aiService";
 import { ChatMessage } from "@/types";
 import "./AIChat.css";
 

@@ -28,6 +28,35 @@ class AIService {
     }
   }
 
+  async createChatSession(userId: string, title: string, contextType?: string, contextId?: string): Promise<ApiResponse<ChatSession>> {
+    try {
+      // 模拟创建聊天会话
+      const newSession: ChatSession = {
+        id: `session-${Date.now()}`,
+        user_id: userId,
+        title,
+        context_type: contextType as any,
+        context_id: contextId,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+      
+      return { success: true, data: newSession };
+    } catch (error) {
+      return { success: false, error: (error as Error).message };
+    }
+  }
+
+  async getChatMessages(sessionId: string): Promise<ApiResponse<ChatMessage[]>> {
+    try {
+      // 模拟获取聊天消息
+      const messages: ChatMessage[] = [];
+      return { success: true, data: messages };
+    } catch (error) {
+      return { success: false, error: (error as Error).message };
+    }
+  }
+
   async sendAIChat(request: AIChatRequest): Promise<ApiResponse<AIChatResponse>> {
     try {
       let aiResponse: string;
