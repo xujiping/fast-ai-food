@@ -1,10 +1,15 @@
 import express from 'express';
 import { supabase } from '../lib/supabase.js';
-import { openai } from '@ai-sdk/openai';
+import { createOpenAI } from '@ai-sdk/openai';
 import { generateObject } from 'ai';
 import { z } from 'zod';
 
 const router = express.Router();
+
+const deepseek = createOpenAI({
+  baseURL: 'https://api.deepseek.com',
+  apiKey: process.env.DEEPSEEK_API_KEY || '',
+});
 
 // Schema for recipe generation
 const recipeSchema = z.object({
@@ -66,15 +71,15 @@ router.post('/recommend', async (req, res) => {
     if (ai_creative || !localRecipes || localRecipes.length === 0) {
       try {
         const prompt = `
-          Generate 2 creative recipes using these ingredients: ${ingredients.join(', ')}.
-          ${cuisine_type ? `Cuisine style: ${cuisine_type}.` : ''}
+          Generate 2 creative Chinese home-style recipes using these ingredients: ${ingredients.join(', ')}.
+          ${cuisine_type ? `Cuisine style: ${cuisine_type}.` : 'Style: Chinese Home Cooking.'}
           ${difficulty ? `Difficulty: ${difficulty}.` : ''}
-          Focus on using the provided ingredients, but you can add common pantry items (oil, salt, etc.).
-          Provide the output in Chinese.
+          Focus on using the provided ingredients, but you can add common Chinese pantry items (soy sauce, ginger, garlic, oil, etc.).
+          Provide the output in Chinese (Simplified).
         `;
 
         const { object } = await generateObject({
-          model: openai('gpt-4o'), // Or gpt-3.5-turbo if 4o not available
+          model: deepseek('deepseek-chat'), 
           schema: z.object({
             recipes: z.array(recipeSchema),
             creativity_score: z.number().min(0).max(100)
@@ -116,7 +121,7 @@ router.post('/ai-creative', async (req, res) => {
     `;
 
     const { object } = await generateObject({
-      model: openai('gpt-4o'),
+      model: deepseek('deepseek-chat'),
       schema: z.object({
         recipe: recipeSchema,
         explanation: z.string(),
