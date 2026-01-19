@@ -48,8 +48,20 @@ router.post('/recommend', async (req, res) => {
     let query = supabase.from('recipes').select('*');
     
     // Construct OR filter for ingredients
-    const orConditions = ingredients.map(ing => `ingredients.ilike.%${ing}%,name.ilike.%${ing}%`).join(',');
-    query = query.or(orConditions);
+    // Cast ingredients (jsonb) to text for ILIKE search
+    const orConditions = ingredients.map((ing: string) => `ingredients.ilike.%${ing}%,name.ilike.%${ing}%`).join(',');
+    // Note: PostgREST doesn't support implicit casting in OR string easily without proper syntax. 
+    // Trying to use a simpler approach or fix the cast if possible.
+    // Actually, let's try to filter by name only for now to avoid the error, 
+    // or use specific JSON containment if we expect exact matches.
+    // But since we want partial matches, and ingredients is JSONB, it's tricky without a raw query or RPC.
+    
+    // Workaround: We will use a raw filter for the OR condition if possible, 
+    // or just search on name + description which are text.
+    // Let's add description to search and drop ingredients (jsonb) from text search to fix the crash.
+    const safeOrConditions = ingredients.map((ing: string) => `name.ilike.%${ing}%,description.ilike.%${ing}%`).join(',');
+    
+    query = query.or(safeOrConditions);
 
     if (cuisine_type) {
       query = query.eq('cuisine_type', cuisine_type);

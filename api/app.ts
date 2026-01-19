@@ -7,6 +7,7 @@ import cors from 'cors'
 import dotenv from 'dotenv'
 import authRoutes from './routes/auth.js'
 import recipeRoutes from './routes/recipes.js'
+import ingredientRoutes from './routes/ingredients.js'
 
 // load env
 dotenv.config()
@@ -22,6 +23,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }))
  */
 app.use('/api/auth', authRoutes)
 app.use('/api/recipes', recipeRoutes)
+app.use('/api/ingredients', ingredientRoutes)
 
 /**
  * health
