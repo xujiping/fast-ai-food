@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Check, Pencil, Plus, Search, Trash2, X } from 'lucide-react';
-import { useRecipeStore } from '@/store/useRecipeStore';
+import { useRecipeStore, PantryItem } from '@/store/useRecipeStore';
+import { twMerge } from 'tailwind-merge';
 
 const splitNames = (raw: string) =>
   raw
@@ -25,10 +26,29 @@ export default function Ingredients() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingValue, setEditingValue] = useState('');
 
-  const filtered = useMemo(() => {
+  // 对过滤后的食材进行分类聚合
+  const groupedPantry = useMemo(() => {
     const q = searchValue.trim().toLowerCase();
-    if (!q) return pantry;
-    return pantry.filter((i) => i.name.toLowerCase().includes(q));
+    let filtered = pantry;
+    if (q) {
+      filtered = pantry.filter((i) => i.name.toLowerCase().includes(q));
+    }
+
+    const groups: Record<string, PantryItem[]> = {};
+    const order: string[] = [];
+
+    // 优先展示有内容的分类
+    filtered.forEach(item => {
+        const cat = item.category || '其他';
+        if (!groups[cat]) {
+            groups[cat] = [];
+            order.push(cat);
+        }
+        groups[cat].push(item);
+    });
+    
+    // 排序分类（可选，可以按固定顺序，这里简单按出现顺序）
+    return { groups, order };
   }, [pantry, searchValue]);
 
   const handleAdd = () => {
@@ -62,7 +82,7 @@ export default function Ingredients() {
 
   return (
     <div className="min-h-screen bg-orange-50 p-4">
-      <header className="mb-6 flex items-center gap-4">
+      <header className="mb-6 flex items-center gap-4 sticky top-0 bg-orange-50/95 backdrop-blur-sm z-10 py-2">
         <button
           onClick={() => navigate('/')}
           className="p-2 bg-white rounded-full shadow-sm hover:shadow-md transition-shadow text-orange-600"
@@ -72,7 +92,7 @@ export default function Ingredients() {
         <div className="flex-1">
           <h1 className="text-2xl font-bold text-gray-800">食材库</h1>
           <p className="text-xs text-gray-500 mt-1">
-            管理常用食材，点击可加入本次食材
+            管理常用食材
           </p>
         </div>
         <button
@@ -84,7 +104,7 @@ export default function Ingredients() {
         </button>
       </header>
 
-      <main className="max-w-md mx-auto space-y-4">
+      <main className="max-w-md mx-auto space-y-4 pb-20">
         <div className="bg-white rounded-2xl shadow-sm p-4 space-y-3">
           <label className="text-sm font-medium text-gray-700">添加到食材库</label>
           <div className="flex gap-2">
@@ -94,7 +114,7 @@ export default function Ingredients() {
               onKeyDown={(e) => {
                 if (e.key === 'Enter') handleAdd();
               }}
-              placeholder="例如：鸡蛋、西红柿、土豆（可用逗号/顿号分隔）"
+              placeholder="例如：鸡蛋、西红柿"
               className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
             />
             <button
@@ -114,92 +134,102 @@ export default function Ingredients() {
               <input
                 value={searchValue}
                 onChange={(e) => setSearchValue(e.target.value)}
-                placeholder="搜索食材"
+                placeholder="搜索我的食材"
                 className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 bg-gray-50"
               />
             </div>
           </div>
         </div>
 
-        {filtered.length === 0 ? (
+        {groupedPantry.order.length === 0 ? (
           <div className="bg-white rounded-2xl shadow-sm p-8 text-center text-gray-400 text-sm">
             {pantry.length === 0 ? '还没有食材，先添加一些吧' : '没有匹配的食材'}
           </div>
         ) : (
-          <div className="space-y-2">
-            {filtered.map((item) => {
-              const isEditing = editingId === item.id;
-              return (
-                <div
-                  key={item.id}
-                  className="bg-white rounded-2xl shadow-sm p-4 flex items-center gap-3"
-                >
-                  <button
-                    onClick={() => addIngredient(item.name)}
-                    className="flex-1 text-left"
-                  >
-                    {isEditing ? (
-                      <input
-                        value={editingValue}
-                        onChange={(e) => setEditingValue(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') handleSaveEdit();
-                          if (e.key === 'Escape') handleCancelEdit();
-                        }}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
-                        autoFocus
-                      />
-                    ) : (
-                      <div className="font-medium text-gray-900">{item.name}</div>
-                    )}
-                  </button>
+          <div className="space-y-6">
+            {groupedPantry.order.map((category) => (
+                <div key={category} className="space-y-2">
+                    <h3 className="text-sm font-semibold text-gray-500 px-2 flex items-center gap-2">
+                        {category}
+                        <span className="text-xs font-normal bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded-full">
+                            {groupedPantry.groups[category].length}
+                        </span>
+                    </h3>
+                    <div className="grid grid-cols-1 gap-2">
+                        {groupedPantry.groups[category].map((item) => {
+                            const isEditing = editingId === item.id;
+                            return (
+                                <div
+                                key={item.id}
+                                className="bg-white rounded-xl shadow-sm p-3 flex items-center gap-3 border border-transparent hover:border-orange-100 transition-colors"
+                                >
+                                    <div className="text-2xl shrink-0 select-none w-8 text-center">
+                                        {item.icon || '🥘'}
+                                    </div>
+                                    
+                                    <div className="flex-1 min-w-0">
+                                        {isEditing ? (
+                                        <input
+                                            value={editingValue}
+                                            onChange={(e) => setEditingValue(e.target.value)}
+                                            onKeyDown={(e) => {
+                                            if (e.key === 'Enter') handleSaveEdit();
+                                            if (e.key === 'Escape') handleCancelEdit();
+                                            }}
+                                            className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-orange-500"
+                                            autoFocus
+                                        />
+                                        ) : (
+                                        <div 
+                                            className="font-medium text-gray-900 truncate cursor-pointer hover:text-orange-600"
+                                            onClick={() => addIngredient(item.name)}
+                                            title="点击加入今日清单"
+                                        >
+                                            {item.name}
+                                        </div>
+                                        )}
+                                    </div>
 
-                  {isEditing ? (
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={handleSaveEdit}
-                        className="p-2 rounded-lg bg-green-50 text-green-600 hover:bg-green-100 transition-colors"
-                        aria-label="保存"
-                      >
-                        <Check size={18} />
-                      </button>
-                      <button
-                        onClick={handleCancelEdit}
-                        className="p-2 rounded-lg bg-gray-50 text-gray-700 hover:bg-gray-100 transition-colors"
-                        aria-label="取消"
-                      >
-                        <X size={18} />
-                      </button>
+                                    {isEditing ? (
+                                        <div className="flex items-center gap-1">
+                                        <button
+                                            onClick={handleSaveEdit}
+                                            className="p-1.5 rounded-lg bg-green-50 text-green-600 hover:bg-green-100 transition-colors"
+                                        >
+                                            <Check size={16} />
+                                        </button>
+                                        <button
+                                            onClick={handleCancelEdit}
+                                            className="p-1.5 rounded-lg bg-gray-50 text-gray-700 hover:bg-gray-100 transition-colors"
+                                        >
+                                            <X size={16} />
+                                        </button>
+                                        </div>
+                                    ) : (
+                                        <div className="flex items-center gap-1 opacity-60 hover:opacity-100 transition-opacity">
+                                        <button
+                                            onClick={() => handleStartEdit(item.id, item.name)}
+                                            className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 transition-colors"
+                                        >
+                                            <Pencil size={14} />
+                                        </button>
+                                        <button
+                                            onClick={() => removePantryItem(item.id)}
+                                            className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors"
+                                        >
+                                            <Trash2 size={14} />
+                                        </button>
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
                     </div>
-                  ) : (
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => handleStartEdit(item.id, item.name)}
-                        className="p-2 rounded-lg bg-gray-50 text-gray-700 hover:bg-gray-100 transition-colors"
-                        aria-label="编辑"
-                      >
-                        <Pencil size={18} />
-                      </button>
-                      <button
-                        onClick={() => removePantryItem(item.id)}
-                        className="p-2 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
-                        aria-label="删除"
-                      >
-                        <Trash2 size={18} />
-                      </button>
-                    </div>
-                  )}
                 </div>
-              );
-            })}
+            ))}
           </div>
         )}
-
-        <div className="text-center text-xs text-gray-500 py-4">
-          共 {pantry.length} 个食材
-        </div>
       </main>
     </div>
   );
 }
-

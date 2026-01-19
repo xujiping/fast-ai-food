@@ -51,9 +51,14 @@ router.post('/', async (req: Request, res: Response) => {
   
   const toInsert = ingredients.map((item: any) => {
     const name = typeof item === 'string' ? item : item.name;
+    const category = typeof item === 'object' && item.category ? item.category : '其他';
+    const icon = typeof item === 'object' && item.icon ? item.icon : '🥘';
+    
     return {
       user_id: userId,
       name: name,
+      category: category,
+      icon: icon,
       quantity: 1, // Default
       unit: '个', // Default
       purchase_date: purchaseDate,

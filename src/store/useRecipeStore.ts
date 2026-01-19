@@ -1,17 +1,33 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { PRESET_INGREDIENTS } from '@/lib/ingredient-data';
 
 export interface PantryItem {
   id: string;
   name: string;
+  category: string;
+  icon: string;
   createdAt: number;
   updatedAt: number;
+}
+
+export interface Recipe {
+  id?: string;
+  name: string;
+  description: string;
+  cooking_time: number;
+  difficulty: string;
+  image_url?: string;
+  recipe_source?: 'local' | 'ai';
+  match_score?: number;
 }
 
 interface RecipeStore {
   userId: string | null;
   ingredients: string[];
   pantry: PantryItem[];
+  recipes: Recipe[];
+  lastFetchMode: string | null;
   
   init: () => Promise<void>;
   
@@ -21,6 +37,8 @@ interface RecipeStore {
   setIngredients: (ingredients: string[]) => void;
   clearIngredients: () => void;
   
+  setRecipes: (recipes: Recipe[], mode: string | null) => void;
+
   addToPantry: (name: string) => Promise<void>;
   addManyToPantry: (names: string[]) => Promise<void>;
   updatePantryItem: (id: string, name: string) => Promise<void>;
@@ -30,12 +48,25 @@ interface RecipeStore {
 
 const normalizeIngredientName = (name: string) => name.trim().replace(/\s+/g, ' ');
 
+// Helper to find category and icon from presets
+const getIngredientMeta = (name: string) => {
+  for (const cat of PRESET_INGREDIENTS) {
+    const found = cat.items.find(item => item.name === name);
+    if (found) {
+      return { category: cat.name, icon: found.icon };
+    }
+  }
+  return { category: '其他', icon: '🥘' };
+};
+
 export const useRecipeStore = create<RecipeStore>()(
   persist(
     (set, get) => ({
       userId: null,
       ingredients: [],
       pantry: [],
+      recipes: [],
+      lastFetchMode: null,
       
       init: async () => {
         let { userId } = get();
@@ -65,6 +96,8 @@ export const useRecipeStore = create<RecipeStore>()(
                   pantry: data.map((item: any) => ({
                     id: item.id,
                     name: item.name,
+                    category: item.category || '其他',
+                    icon: item.icon || '🥘',
                     createdAt: new Date(item.created_at).getTime(),
                     updatedAt: new Date(item.updated_at).getTime(),
                   }))
@@ -73,12 +106,17 @@ export const useRecipeStore = create<RecipeStore>()(
                 // DB is empty. Check if we have local data to migrate.
                 const { pantry } = get();
                 if (pantry.length > 0) {
-                   const names = pantry.map(p => p.name);
+                   // Migration logic needs update for new fields
+                   const itemsToMigrate = pantry.map(p => ({
+                     name: p.name,
+                     ...getIngredientMeta(p.name)
+                   }));
+                   
                    try {
                      const postRes = await fetch('/api/ingredients', {
                        method: 'POST',
                        headers: { 'Content-Type': 'application/json', 'x-user-id': userId },
-                       body: JSON.stringify({ ingredients: names })
+                       body: JSON.stringify({ ingredients: itemsToMigrate })
                      });
                      if (postRes.ok) {
                        const newData = await postRes.json();
@@ -86,6 +124,8 @@ export const useRecipeStore = create<RecipeStore>()(
                           pantry: newData.map((item: any) => ({
                             id: item.id,
                             name: item.name,
+                            category: item.category || '其他',
+                            icon: item.icon || '🥘',
                             createdAt: new Date(item.created_at).getTime(),
                             updatedAt: new Date(item.updated_at).getTime(),
                           }))
@@ -108,7 +148,11 @@ export const useRecipeStore = create<RecipeStore>()(
           const normalized = normalizeIngredientName(ingredient);
           if (!normalized) return state;
           if (state.ingredients.includes(normalized)) return state;
-          return { ingredients: [...state.ingredients, normalized] };
+          return { 
+            ingredients: [...state.ingredients, normalized],
+            recipes: [],
+            lastFetchMode: null
+          };
         }),
       
       addIngredients: (ingredients) =>
@@ -121,20 +165,34 @@ export const useRecipeStore = create<RecipeStore>()(
           for (const ing of incoming) {
             if (!next.includes(ing)) next.push(ing);
           }
-          return { ingredients: next };
+          return { 
+            ingredients: next,
+            recipes: [],
+            lastFetchMode: null
+          };
         }),
 
       removeIngredient: (ingredient) =>
         set((state) => ({
           ingredients: state.ingredients.filter((i) => i !== ingredient),
+          recipes: [],
+          lastFetchMode: null
         })),
 
       setIngredients: (ingredients) =>
         set({
           ingredients: ingredients.map(normalizeIngredientName).filter(Boolean),
+          recipes: [],
+          lastFetchMode: null
         }),
 
-      clearIngredients: () => set({ ingredients: [] }),
+      clearIngredients: () => set({ 
+        ingredients: [],
+        recipes: [],
+        lastFetchMode: null
+      }),
+
+      setRecipes: (recipes, mode) => set({ recipes, lastFetchMode: mode }),
 
       addToPantry: async (name) => {
         const normalized = normalizeIngredientName(name);
@@ -144,12 +202,22 @@ export const useRecipeStore = create<RecipeStore>()(
         // Optimistic check for duplicates
         if (pantry.some(i => i.name.toLowerCase() === normalized.toLowerCase())) return;
 
+        const meta = getIngredientMeta(normalized);
+        const optimisticItem: PantryItem = {
+           id: 'temp-' + Date.now(),
+           name: normalized,
+           category: meta.category,
+           icon: meta.icon,
+           createdAt: Date.now(),
+           updatedAt: Date.now()
+        };
+
         if (userId) {
            try {
              const res = await fetch('/api/ingredients', {
                method: 'POST',
                headers: { 'Content-Type': 'application/json', 'x-user-id': userId },
-               body: JSON.stringify({ ingredients: [normalized] })
+               body: JSON.stringify({ ingredients: [{ name: normalized, ...meta }] })
              });
              if (res.ok) {
                const data = await res.json();
@@ -158,6 +226,8 @@ export const useRecipeStore = create<RecipeStore>()(
                  pantry: [{
                    id: newItem.id,
                    name: newItem.name,
+                   category: newItem.category || '其他',
+                   icon: newItem.icon || '🥘',
                    createdAt: new Date(newItem.created_at).getTime(),
                    updatedAt: new Date(newItem.updated_at).getTime()
                  }, ...state.pantry]
@@ -166,6 +236,8 @@ export const useRecipeStore = create<RecipeStore>()(
            } catch (e) {
              console.error(e);
            }
+        } else {
+            set(state => ({ pantry: [optimisticItem, ...state.pantry] }));
         }
       },
 
@@ -175,22 +247,29 @@ export const useRecipeStore = create<RecipeStore>()(
         
         const { userId, pantry } = get();
         const existingLower = new Set(pantry.map(i => i.name.toLowerCase()));
-        const toAdd = normalizedNames.filter(n => !existingLower.has(n.toLowerCase()));
+        const toAddNames = normalizedNames.filter(n => !existingLower.has(n.toLowerCase()));
         
-        if (toAdd.length === 0) return;
+        if (toAddNames.length === 0) return;
+
+        const toAddItems = toAddNames.map(name => ({
+            name,
+            ...getIngredientMeta(name)
+        }));
 
         if (userId) {
            try {
              const res = await fetch('/api/ingredients', {
                method: 'POST',
                headers: { 'Content-Type': 'application/json', 'x-user-id': userId },
-               body: JSON.stringify({ ingredients: toAdd })
+               body: JSON.stringify({ ingredients: toAddItems })
              });
              if (res.ok) {
                const data = await res.json();
                const newItems = data.map((item: any) => ({
                    id: item.id,
                    name: item.name,
+                   category: item.category || '其他',
+                   icon: item.icon || '🥘',
                    createdAt: new Date(item.created_at).getTime(),
                    updatedAt: new Date(item.updated_at).getTime()
                }));
@@ -210,17 +289,19 @@ export const useRecipeStore = create<RecipeStore>()(
         // Check duplicate with other items
         if (pantry.some(i => i.id !== id && i.name.toLowerCase() === normalized.toLowerCase())) return;
 
+        const meta = getIngredientMeta(normalized);
+
         if (userId) {
           // Optimistic update
           set(state => ({
-            pantry: state.pantry.map(i => i.id === id ? { ...i, name: normalized } : i)
+            pantry: state.pantry.map(i => i.id === id ? { ...i, name: normalized, ...meta } : i)
           }));
           
           try {
             await fetch(`/api/ingredients/${id}`, {
               method: 'PUT',
               headers: { 'Content-Type': 'application/json', 'x-user-id': userId },
-              body: JSON.stringify({ name: normalized })
+              body: JSON.stringify({ name: normalized, ...meta })
             });
           } catch (e) {
             console.error(e);
@@ -261,7 +342,7 @@ export const useRecipeStore = create<RecipeStore>()(
     }),
     {
       name: 'fast-ai-food-store',
-      version: 2,
+      version: 3, // Increment version for schema change
       partialize: (state) => ({
         ingredients: state.ingredients,
         pantry: state.pantry,

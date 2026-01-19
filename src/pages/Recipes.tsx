@@ -1,33 +1,32 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { useRecipeStore } from '@/store/useRecipeStore';
+import { useRecipeStore, Recipe } from '@/store/useRecipeStore';
 import { ArrowLeft, Clock, ChefHat, Sparkles, AlertCircle } from 'lucide-react';
-
-interface Recipe {
-  id?: string;
-  name: string;
-  description: string;
-  cooking_time: number;
-  difficulty: string;
-  image_url?: string;
-  recipe_source?: 'local' | 'ai';
-  match_score?: number;
-}
 
 export default function Recipes() {
   const [searchParams] = useSearchParams();
   const mode = searchParams.get('mode');
-  const { ingredients } = useRecipeStore();
+  const { ingredients, recipes, setRecipes, lastFetchMode } = useRecipeStore();
   const navigate = useNavigate();
 
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => {
+    const currentMode = mode === 'creative' ? 'creative' : 'recommend';
+    return !(recipes.length > 0 && lastFetchMode === currentMode);
+  });
   const [error, setError] = useState<string | null>(null);
-  const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [aiExplanation, setAiExplanation] = useState<string | null>(null);
 
   useEffect(() => {
     if (ingredients.length === 0) {
       navigate('/');
+      return;
+    }
+
+    const currentMode = mode === 'creative' ? 'creative' : 'recommend';
+
+    // Use cached recipes if available and matching the current mode
+    if (recipes.length > 0 && lastFetchMode === currentMode) {
+      setLoading(false);
       return;
     }
 
@@ -54,17 +53,18 @@ export default function Recipes() {
           creativity_explanation?: string;
         };
         
+        let newRecipes: Recipe[] = [];
         if (mode === 'creative') {
-          setRecipes(data.ai_recipes || []);
-          setAiExplanation(data.creativity_explanation);
+          newRecipes = data.ai_recipes || [];
+          setAiExplanation(data.creativity_explanation || null);
         } else {
           // Combine local and AI recipes
-          const combined = [
+          newRecipes = [
             ...(data.local_recipes || []).map((r) => ({ ...r, recipe_source: 'local' as const })),
             ...(data.ai_recipes || []).map((r) => ({ ...r, recipe_source: 'ai' as const }))
           ];
-          setRecipes(combined);
         }
+        setRecipes(newRecipes, currentMode);
       } catch (err: unknown) {
         setError(err instanceof Error ? err.message : 'Something went wrong');
       } finally {
@@ -73,7 +73,7 @@ export default function Recipes() {
     };
 
     fetchRecipes();
-  }, [ingredients, mode, navigate]);
+  }, [ingredients, mode, navigate, recipes.length, lastFetchMode, setRecipes]);
 
   return (
     <div className="min-h-screen bg-orange-50 p-4">
