@@ -4,7 +4,7 @@ import { useRecipeStore } from '@/store/useRecipeStore';
 import { ArrowLeft, Clock, ChefHat, Sparkles, AlertCircle } from 'lucide-react';
 
 interface Recipe {
-  id: string;
+  id?: string;
   name: string;
   description: string;
   cooking_time: number;
@@ -48,7 +48,11 @@ export default function Recipes() {
 
         if (!res.ok) throw new Error('Failed to fetch recipes');
 
-        const data = await res.json();
+        const data = (await res.json()) as {
+          local_recipes?: Recipe[];
+          ai_recipes?: Recipe[];
+          creativity_explanation?: string;
+        };
         
         if (mode === 'creative') {
           setRecipes(data.ai_recipes || []);
@@ -56,13 +60,13 @@ export default function Recipes() {
         } else {
           // Combine local and AI recipes
           const combined = [
-            ...(data.local_recipes || []).map((r: any) => ({ ...r, recipe_source: 'local' })),
-            ...(data.ai_recipes || []).map((r: any) => ({ ...r, recipe_source: 'ai' }))
+            ...(data.local_recipes || []).map((r) => ({ ...r, recipe_source: 'local' as const })),
+            ...(data.ai_recipes || []).map((r) => ({ ...r, recipe_source: 'ai' as const }))
           ];
           setRecipes(combined);
         }
-      } catch (err: any) {
-        setError(err.message || 'Something went wrong');
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : 'Something went wrong');
       } finally {
         setLoading(false);
       }

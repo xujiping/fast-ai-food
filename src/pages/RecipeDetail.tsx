@@ -1,16 +1,32 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { ArrowLeft, Clock, Flame, ChefHat, CheckCircle2, Circle } from 'lucide-react';
+import { ArrowLeft, Clock, Flame, ChefHat } from 'lucide-react';
+
+type RecipeIngredient =
+  | string
+  | {
+      name: string;
+      quantity: string;
+      unit?: string;
+    };
+
+type RecipeStep =
+  | string
+  | {
+      step_number: number;
+      instruction: string;
+      duration?: string;
+    };
 
 interface Recipe {
-  id: string;
+  id?: string;
   name: string;
   description: string;
   cooking_time: number;
   difficulty: string;
-  ingredients: any[];
-  steps: any[];
-  nutrition?: any;
+  ingredients: RecipeIngredient[];
+  steps: RecipeStep[];
+  nutrition?: Record<string, unknown>;
   calories?: number;
   image_url?: string;
 }
@@ -33,10 +49,10 @@ export default function RecipeDetail() {
       try {
         const res = await fetch(`/api/recipes/${id}`);
         if (!res.ok) throw new Error('Recipe not found');
-        const data = await res.json();
+        const data = (await res.json()) as Recipe;
         setRecipe(data);
-      } catch (err: any) {
-        setError(err.message);
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : 'Recipe not found');
       } finally {
         setLoading(false);
       }
@@ -124,7 +140,7 @@ export default function RecipeDetail() {
               食材清单
             </h2>
             <ul className="space-y-3">
-              {Array.isArray(recipe.ingredients) && recipe.ingredients.map((ing: any, idx: number) => (
+              {Array.isArray(recipe.ingredients) && recipe.ingredients.map((ing, idx) => (
                 <li key={idx} className="flex items-center justify-between text-sm group">
                   <span className="text-gray-700 font-medium group-hover:text-orange-600 transition-colors">
                     {typeof ing === 'string' ? ing : ing.name}
@@ -143,16 +159,16 @@ export default function RecipeDetail() {
               制作步骤
             </h2>
             <div className="space-y-6">
-              {Array.isArray(recipe.steps) && recipe.steps.map((step: any, idx: number) => (
+              {Array.isArray(recipe.steps) && recipe.steps.map((step, idx) => (
                 <div key={idx} className="flex gap-4">
                   <div className="shrink-0 w-6 h-6 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center text-xs font-bold mt-0.5">
-                    {step.step_number || idx + 1}
+                    {typeof step === 'string' ? idx + 1 : step.step_number || idx + 1}
                   </div>
                   <div className="space-y-1">
                     <p className="text-gray-700 text-sm leading-relaxed">
                       {typeof step === 'string' ? step : step.instruction}
                     </p>
-                    {step.duration && (
+                    {typeof step !== 'string' && step.duration && (
                       <span className="text-xs text-gray-400 flex items-center gap-1">
                         <Clock size={10} /> {step.duration}
                       </span>

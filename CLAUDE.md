@@ -82,7 +82,7 @@ fast-ai-food/
 ### 关键设计点
 
 **AI 集成方式**：
-- 使用 `@ai-sdk/openai` 的 `createOpenAI` 创建 DeepSeek 客户端
+- 使用 `@ai-sdk/deepseek` 创建 DeepSeek 客户端
 - 通过 `generateObject` 实现结构化输出，使用 Zod schema 定义菜谱格式
 - 支持 `ai_creative` 参数控制是否启用 AI 生成
 

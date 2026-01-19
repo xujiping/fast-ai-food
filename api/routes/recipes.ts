@@ -1,14 +1,13 @@
 import express from 'express';
 import { supabase } from '../lib/supabase.js';
-import { createOpenAI } from '@ai-sdk/openai';
+import { createDeepSeek } from '@ai-sdk/deepseek';
 import { generateObject } from 'ai';
 import { z } from 'zod';
 
 const router = express.Router();
 
-const deepseek = createOpenAI({
-  baseURL: 'https://api.deepseek.com',
-  apiKey: process.env.DEEPSEEK_API_KEY || '',
+const deepseek = createDeepSeek({
+  apiKey: process.env.DEEPSEEK_API_KEY ?? '',
 });
 
 // Schema for recipe generation
@@ -31,6 +30,8 @@ const recipeSchema = z.object({
   calories: z.number().optional(),
   reason: z.string().describe('Why this recipe is recommended based on ingredients')
 });
+
+type AiRecipe = z.infer<typeof recipeSchema>;
 
 // POST /api/recipes/recommend
 router.post('/recommend', async (req, res) => {
@@ -64,7 +65,7 @@ router.post('/recommend', async (req, res) => {
       // Continue to AI even if DB fails? No, simpler to just return empty local
     }
 
-    let aiRecipes: any[] = [];
+    let aiRecipes: AiRecipe[] = [];
     let aiCreativityScore = 0;
 
     // 2. AI Recommendation (if enabled or no local results)
