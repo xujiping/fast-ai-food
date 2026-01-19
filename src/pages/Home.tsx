@@ -1,18 +1,26 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useRecipeStore } from '@/store/useRecipeStore';
-import { Plus, X, ChefHat, Sparkles } from 'lucide-react';
+import { BookOpen, Plus, X, ChefHat, Sparkles } from 'lucide-react';
+
+const splitNames = (raw: string) =>
+  raw
+    .split(/[,\n、，]+/g)
+    .map((s) => s.trim())
+    .filter(Boolean);
 
 export default function Home() {
   const [inputValue, setInputValue] = useState('');
   const navigate = useNavigate();
-  const { ingredients, addIngredient, removeIngredient } = useRecipeStore();
+  const { ingredients, pantry, addIngredients, addManyToPantry, addIngredient, removeIngredient } =
+    useRecipeStore();
 
   const handleAdd = () => {
-    if (inputValue.trim() && !ingredients.includes(inputValue.trim())) {
-      addIngredient(inputValue.trim());
-      setInputValue('');
-    }
+    const names = splitNames(inputValue);
+    if (names.length === 0) return;
+    addIngredients(names);
+    addManyToPantry(names);
+    setInputValue('');
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -35,7 +43,14 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-orange-50 p-4 flex flex-col items-center">
-      <header className="w-full max-w-md py-8 text-center">
+      <header className="w-full max-w-md py-8 text-center relative">
+        <button
+          onClick={() => navigate('/ingredients')}
+          className="absolute right-0 top-8 px-3 py-2 bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow text-orange-600 text-sm font-medium flex items-center gap-2"
+        >
+          <BookOpen size={18} />
+          食材库
+        </button>
         <h1 className="text-3xl font-bold text-orange-600 flex items-center justify-center gap-2">
           <ChefHat size={32} />
           AI 智能食谱
@@ -52,7 +67,7 @@ export default function Home() {
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="例如：鸡蛋、西红柿、土豆"
+              placeholder="例如：鸡蛋、西红柿、土豆（可用逗号/顿号分隔）"
               className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
             />
             <button
@@ -84,6 +99,39 @@ export default function Home() {
         ) : (
           <div className="text-center py-8 text-gray-400 text-sm">
             请添加至少一种食材开始
+          </div>
+        )}
+
+        {pantry.length > 0 && (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="text-sm font-medium text-gray-700">食材库快捷添加</div>
+              <button
+                onClick={() => navigate('/ingredients')}
+                className="text-sm text-orange-600 hover:underline"
+              >
+                管理
+              </button>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {pantry.slice(0, 12).map((item) => {
+                const selected = ingredients.includes(item.name);
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => addIngredient(item.name)}
+                    disabled={selected}
+                    className={`px-3 py-1 rounded-full text-sm font-medium border transition-colors ${
+                      selected
+                        ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                        : 'bg-white text-gray-700 border-gray-200 hover:border-orange-300 hover:text-orange-700'
+                    }`}
+                  >
+                    {item.name}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         )}
 
