@@ -1,7 +1,3 @@
-/**
- * This is a API server
- */
-
 import express, {
   type Request,
   type Response,
